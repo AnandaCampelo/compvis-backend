@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.pyo
+
+# Virtualenv
+venv/
+.env
+*.env
+.venv/
+
+# Logs e cache
+*.log
+*.cache
+*.sqlite3
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Arquivos temporários
+*.tmp
+*.bak
+*~
+
+# Arquivos de build
+dist/
+build/
+*.egg-info/
+
+# Dados do projeto
+*.jpg
+*.png
+*.jpeg
+*.mp4
+*.avi
+*.mov
+
+# Arquivos YOLO treinados
+*.pt
+
+# Arquivos temporários gerados por UploadFile
+tmp/
+temp/
+
+# Notebooks
+*.ipynb_checkpoints/
+
+# Dados sensíveis
+API_TOKEN
+secrets.json

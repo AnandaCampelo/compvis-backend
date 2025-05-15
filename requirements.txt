@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+opencv-python
+matplotlib
+numpy
+paddleocr
+ultralytics
+python-multipart
+requests
