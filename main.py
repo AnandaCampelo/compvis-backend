@@ -1,43 +1,45 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
+import utils
 import tempfile
 import shutil
 import os
 import requests
-
-from detect import get_detected_plates # detect.py
 
 app = FastAPI()
 
 API_TOKEN = os.getenv("API_TOKEN", "default_token_value")
 API_URL = "https://wdapi2.com.br/consulta/{placa}/{token}"
 
+# First part: Detect the plates and classify the text using OCR
 @app.post("/detect-plate/")
 async def detect_plate(file: UploadFile = File(...)):
+    """
+    Detecta placas em uma imagem e retorna o texto contido na placa.
+    
+    Args:
+        file (UploadFile): Arquivo de imagem enviado pelo usuário.
+    Returns:
+        JSONResponse: JSON com o texto da placa e uma lista das imagens detectadas codificadas em base64.
+    """
+    
     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_file:
         shutil.copyfileobj(file.file, temp_file)
         temp_path = temp_file.name
 
     try:
-        # 1. Detecta placas com lógica externa
-        plates = get_detected_plates(temp_path)
-        if not plates:
-            return JSONResponse(content={"error": "Nenhuma placa detectada"}, status_code=404)
-
-        # 2. Faz a consulta na API para cada placa
-        respostas = []
-        for placa in plates:
-            try:
-                url = API_URL.format(placa=placa, token=API_TOKEN)
-                response = requests.get(url, timeout=10)
-                if response.status_code == 200:
-                    respostas.append(response.json())
-                else:
-                    respostas.append({"placa": placa, "erro": f"status {response.status_code}"})
-            except Exception as e:
-                respostas.append({"placa": placa, "erro": str(e)})
-
-        return JSONResponse(content=respostas, status_code=200)
+        # Analyze the video file to detect license plates
+        results = utils.analyze_video(temp_path)
+        if not results:
+            return JSONResponse(status_code=404, content={"message": "No plates detected."})
+        
+        return JSONResponse(
+            status_code=200,
+            content={
+                "message": "Plates detected successfully.",
+                "plates": results
+            }
+        )
 
     finally:
         os.remove(temp_path)
