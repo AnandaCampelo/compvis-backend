@@ -285,6 +285,9 @@ def analyze_video(video_path):
                 
                 if plate and plate not in plates:
                     # Encode the cropped image to base64
+                    # Calculate imagem dimensions
+                    height, width = cropped_image.shape[:2]
+                    image_resolution = height * width
                     encoded_image = cv2.imencode('.png', cropped_image)[1]
                     data = np.array(encoded_image)
                     data = base64.b64encode(data).decode('utf-8')
@@ -292,10 +295,24 @@ def analyze_video(video_path):
                     plates[plate] = {
                         'frequency': 1,
                         'frame': frame_number,
-                        'image': data
+                        'image': data,
+                        'image_resolution': image_resolution
                     }
                 elif plate:
+                    # If the plate already exists, increment its frequency
                     plates[plate]['frequency'] += 1
+                    # Update the frame number and image if the current one is larger
+                    new_image_resolution = cropped_image.shape[0] * cropped_image.shape[1]
+                    
+                    if new_image_resolution > plates[plate]['image_resolution']:
+                        # Encode the cropped image to base64
+                        encoded_image = cv2.imencode('.png', cropped_image)[1]
+                        data = np.array(encoded_image)
+                        data = base64.b64encode(data).decode('utf-8')
+                        
+                        plates[plate]['image'] = data
+                        plates[plate]['frame'] = frame_number
+                        plates[plate]['image_resolution'] = new_image_resolution
             
         if frame is not None and debug:
             debug_frame = cv2.resize(frame, (720, 480))
@@ -328,6 +345,8 @@ def analyze_video(video_path):
             grouped_plates[max_plate] = {
                 'frequency': sum(plates[p]['frequency'] for p in grupo),
                 'frame': all_group_plates[0]['frame'],  # Use the frame of the first plate
-                'image': plates[max_plate]['image']
+                # Select the image with the highest resolution
+                'image': max(all_group_plates, key=lambda p: p['image_resolution'])['image'],
+                'image_resolution': max(all_group_plates, key=lambda p: p['image_resolution'])['image_resolution']
             }
     return grouped_plates
