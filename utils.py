@@ -236,117 +236,137 @@ def agrupar_placas_por_hamming_completo(placas, max_dist=1):
 
 # ================== Main Function ==================
 # Main Function: Analyze the video and call other functions to detect plates and classify them.
-def analyze_video(video_path):
+def analyze_media(media_path):
     """
-    Analyzes a video file to detect license plates and classify the text using OCR.
+    Analyzes a video file or image to detect license plates and classify the text using OCR.
     
     Args:
-        video_path (str): Path to the video file.
+        media_path (str): Path to the media file (video or image).
         
     Returns:
-        list: A list of dictionaries containing the detected plate text and the corresponding frame number.
+        dict: Dictionary containing the detected plate information.
     """
-    if not os.path.exists(video_path):
-        raise FileNotFoundError(f"Video file {video_path} does not exist.")
+    if not os.path.exists(media_path):
+        raise FileNotFoundError(f"Media file {media_path} does not exist.")
     
-    # Initialize video capture
-    cap = cv2.VideoCapture(video_path)
-    
-    if not cap.isOpened():
-        print(f"Error opening video file {video_path}.")
-        return
-    
-    # get the video Frame rate
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    # First try to open as image
+    frame = cv2.imread(media_path)
+    if frame is not None:
+        # Process as single image
+        plates = {}
         
-    success, frame = cap.read()
-    frame_number = 0
-    
-    plates = {}
-    
-    while success:
-        frame_number += 1
+        # 1. Crop the frame to detect plates
+        cropped_images = classify_and_crop(frame)
+        if not cropped_images:
+            print("No plates detected in image.")
+            return {}
         
-        # For each second of the video, we will process 3 frames
-        if frame_number % int(fps / 3) == 0:
-            print(f"Processing frame {frame_number}...")
+        # 2. For each cropped image, classify the text
+        for cropped_image in cropped_images:
+            plate = extract_plate_from_image(cropped_image)
             
-            # 1. Crop the frame to detect plates
-            cropped_images = classify_and_crop(frame)
-            if not cropped_images:
-                print(f"No plates detected in frame {frame_number}.")
-                success, frame = cap.read()
-                continue
-            
-            # 2. For each cropped image, classify the text
-            for cropped_image in cropped_images:
-                plate = extract_plate_from_image(cropped_image)
-                
-                if plate and plate not in plates:
-                    # Encode the cropped image to base64
-                    # Calculate imagem dimensions
-                    height, width = cropped_image.shape[:2]
-                    image_resolution = height * width
-                    encoded_image = cv2.imencode('.png', cropped_image)[1]
-                    data = np.array(encoded_image)
-                    data = base64.b64encode(data).decode('utf-8')
+            if plate and plate not in plates:
+                # Encode the cropped image to base64
+                height, width = cropped_image.shape[:2]
+                image_resolution = height * width
+                encoded_image = cv2.imencode('.png', cropped_image)[1]
+                data = np.array(encoded_image)
+                data = base64.b64encode(data).decode('utf-8')
 
-                    plates[plate] = {
-                        'frequency': 1,
-                        'frame': frame_number,
-                        'image': data,
-                        'image_resolution': image_resolution
-                    }
-                elif plate:
-                    # If the plate already exists, increment its frequency
-                    plates[plate]['frequency'] += 1
-                    # Update the frame number and image if the current one is larger
-                    new_image_resolution = cropped_image.shape[0] * cropped_image.shape[1]
+                plates[plate] = {
+                    'frequency': 1,
+                    'frame': 1,  # Just 1 for image
+                    'image': data,
+                    'image_resolution': image_resolution
+                }
+        
+        return plates
+    else:
+        # If not an image, try as video
+        cap = cv2.VideoCapture(media_path)
+        
+        if not cap.isOpened():
+            # If neither image nor video could be opened
+            raise ValueError(f"Could not read media file {media_path} as either image or video")
+        
+        # Rest of the video processing code remains the same
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        success, frame = cap.read()
+        frame_number = 0
+        
+        plates = {}
+        
+        while success:
+            frame_number += 1
+            
+            if frame_number % int(fps / 3) == 0:
+                print(f"Processing frame {frame_number}...")
+                
+                cropped_images = classify_and_crop(frame)
+                if not cropped_images:
+                    print(f"No plates detected in frame {frame_number}.")
+                    success, frame = cap.read()
+                    continue
+                
+                for cropped_image in cropped_images:
+                    plate = extract_plate_from_image(cropped_image)
                     
-                    if new_image_resolution > plates[plate]['image_resolution']:
-                        # Encode the cropped image to base64
+                    if plate and plate not in plates:
+                        height, width = cropped_image.shape[:2]
+                        image_resolution = height * width
                         encoded_image = cv2.imencode('.png', cropped_image)[1]
                         data = np.array(encoded_image)
                         data = base64.b64encode(data).decode('utf-8')
-                        
-                        plates[plate]['image'] = data
-                        plates[plate]['frame'] = frame_number
-                        plates[plate]['image_resolution'] = new_image_resolution
-            
-        if frame is not None and debug:
-            debug_frame = cv2.resize(frame, (720, 480))
-            cv2.imshow("Frame", debug_frame)
-            key = cv2.waitKey(10)
-            if key == ord('q') or not cv2.getWindowProperty("Frame", cv2.WND_PROP_VISIBLE):
-                print("Exiting...\n")
-                cap.release()
-                break
-        
-        success, frame = cap.read()
 
-    cap.release()
-    if debug:
-        cv2.destroyAllWindows()
-    
-    # Group plates by Hamming distance
-    placas = list(plates.keys())
-    grupos = agrupar_placas_por_hamming_completo(placas, max_dist=1)
-    
-    # Create a new dictionary to store grouped plates
-    grouped_plates = {}
-    for grupo in grupos:
-        if len(grupo) == 1:
-            plate = grupo[0]
-            grouped_plates[plate] = plates[plate]
-        else:
-            # If there are multiple plates in the group, take the one with the highest frequency
-            max_plate = max(grupo, key=lambda p: plates[p]['frequency'])
-            all_group_plates = [plates[p] for p in grupo]
-            grouped_plates[max_plate] = {
-                'frequency': sum(plates[p]['frequency'] for p in grupo),
-                'frame': all_group_plates[0]['frame'],  # Use the frame of the first plate
-                # Select the image with the highest resolution
-                'image': max(all_group_plates, key=lambda p: p['image_resolution'])['image'],
-                'image_resolution': max(all_group_plates, key=lambda p: p['image_resolution'])['image_resolution']
-            }
-    return grouped_plates
+                        plates[plate] = {
+                            'frequency': 1,
+                            'frame': frame_number,
+                            'image': data,
+                            'image_resolution': image_resolution
+                        }
+                    elif plate:
+                        plates[plate]['frequency'] += 1
+                        new_image_resolution = cropped_image.shape[0] * cropped_image.shape[1]
+                        
+                        if new_image_resolution > plates[plate]['image_resolution']:
+                            encoded_image = cv2.imencode('.png', cropped_image)[1]
+                            data = np.array(encoded_image)
+                            data = base64.b64encode(data).decode('utf-8')
+                            
+                            plates[plate]['image'] = data
+                            plates[plate]['frame'] = frame_number
+                            plates[plate]['image_resolution'] = new_image_resolution
+            
+            if frame is not None and debug:
+                debug_frame = cv2.resize(frame, (720, 480))
+                cv2.imshow("Frame", debug_frame)
+                key = cv2.waitKey(10)
+                if key == ord('q') or not cv2.getWindowProperty("Frame", cv2.WND_PROP_VISIBLE):
+                    print("Exiting...\n")
+                    cap.release()
+                    break
+            
+            success, frame = cap.read()
+
+        cap.release()
+        if debug:
+            cv2.destroyAllWindows()
+        
+        placas = list(plates.keys())
+        grupos = agrupar_placas_por_hamming_completo(placas, max_dist=1)
+        
+        grouped_plates = {}
+        for grupo in grupos:
+            if len(grupo) == 1:
+                plate = grupo[0]
+                grouped_plates[plate] = plates[plate]
+            else:
+                max_plate = max(grupo, key=lambda p: plates[p]['frequency'])
+                all_group_plates = [plates[p] for p in grupo]
+                grouped_plates[max_plate] = {
+                    'frequency': sum(plates[p]['frequency'] for p in grupo),
+                    'frame': all_group_plates[0]['frame'],
+                    'image': max(all_group_plates, key=lambda p: p['image_resolution'])['image'],
+                    'image_resolution': max(all_group_plates, key=lambda p: p['image_resolution'])['image_resolution']
+                }
+        return grouped_plates

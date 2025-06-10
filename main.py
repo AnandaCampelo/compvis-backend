@@ -65,18 +65,36 @@ async def detect_plate(req: ImageRequest = Body(...)):
     except Exception:
         raise HTTPException(400, "Invalid base64 payload")
 
-    # write temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tf:
+    # Determine file type from header or content
+    is_video = False
+    file_suffix = ".jpg"
+    
+    if header.startswith("data:video/"):
+        is_video = True
+        file_suffix = ".mp4"
+    elif header.startswith("data:image/"):
+        if "png" in header:
+            file_suffix = ".png"
+        elif "gif" in header:
+            file_suffix = ".gif"
+        elif "jpeg" in header or "jpg" in header:
+            file_suffix = ".jpg"
+        else:
+            raise HTTPException(400, "Unsupported image format")
+    else:
+        raise HTTPException(400, "Invalid data URL format")
+
+    # write temp file with appropriate extension
+    with tempfile.NamedTemporaryFile(delete=False, suffix=file_suffix) as tf:
         tf.write(raw)
         path = tf.name
 
     try:
-        plates = utils.analyze_video(path)
+        plates = utils.analyze_media(path)
     finally:
         os.unlink(path)
 
     if not plates:
-        # positional-correct:
         return JSONResponse({"message": "No plates detected."}, 404)
 
     return {"message": "ok", "plates": plates}
