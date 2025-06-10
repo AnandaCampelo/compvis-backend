@@ -40,9 +40,6 @@ build/
 *.avi
 *.mov
 
-# Arquivos YOLO treinados
-*.pt
-
 # Arquivos temporários gerados por UploadFile
 tmp/
 temp/
