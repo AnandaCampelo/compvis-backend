@@ -39,10 +39,9 @@ def classify_and_crop(image, model=None):
             cropped = image[y1:y2, x1:x2]
             cropped_images.append(cropped)
 
-            # if debug:
-            #     output_filename = f'frame_crop_{i}_{j}.png'
-            #     imgnames.append(output_filename)
-            #     cv2.imwrite(output_filename, cropped)
+            output_filename = f'frame_crop_{i}_{j}.png'
+            imgnames.append(output_filename)
+            cv2.imwrite(output_filename, cropped)
 
     return cropped_images
 
@@ -135,37 +134,29 @@ def correct_plate(word, is_new_plate):
 ocr = PaddleOCR(
         use_angle_cls=True, 
         lang='en',
+        show_log=False,
     )
 
 def extract_plate_from_image(image_path):
     # Preprocess the image
     is_new_plate = detect_blue_strip(image_path)
-    result = ocr.ocr(image_path)
+    result = ocr.ocr(image_path, cls=True)
         
     if not result or result[0] is None:
         print("Nenhum resultado encontrado.")
         return None    
     
     detected_words = []
-    for page in result:
-        for word_info in page:
-            # must be a pair [bbox, (text, score)]
-            if (not isinstance(word_info, (list, tuple)) 
-                or len(word_info) < 2 
-                or not isinstance(word_info[1], (list, tuple)) 
-                or len(word_info[1]) < 2):
-                # skip anything that isn't the expected (text, confidence) tuple
-                continue
-
-            raw_text, conf = word_info[1][0], word_info[1][1]
-            text = limpar_placa(raw_text.replace(" ", ""))
-            print(f"Texto detectado: {text} (conf {conf})")
-
+    for line in result:
+        for word_info in line:
+            text = word_info[1][0].replace(" ", "")
+            text = limpar_placa(text)
+            print(f"Texto detectado: {text}")
             if text.lower() == "brasil":
                 is_new_plate = True
             else:
-                detected_words.append((text, conf))
-                
+                detected_words.append((text, word_info[1][1]))  # (text, confidence)
+                    
     print(f"Palavras detectadas: {detected_words}") 
     
     # Tenta cada palavra isolada
@@ -334,6 +325,8 @@ def analyze_video(video_path):
         success, frame = cap.read()
 
     cap.release()
+    if debug:
+        cv2.destroyAllWindows()
     
     # Group plates by Hamming distance
     placas = list(plates.keys())

@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import base64, tempfile, os, json,utils,requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
