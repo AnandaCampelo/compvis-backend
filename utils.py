@@ -8,7 +8,7 @@ from collections import defaultdict
 import re
 import base64
 
-debug = True
+debug = False
 
 # Aux Functions
 
@@ -135,29 +135,37 @@ def correct_plate(word, is_new_plate):
 ocr = PaddleOCR(
         use_angle_cls=True, 
         lang='en',
-        show_log=False,
     )
 
 def extract_plate_from_image(image_path):
     # Preprocess the image
     is_new_plate = detect_blue_strip(image_path)
-    result = ocr.ocr(image_path, cls=True)
+    result = ocr.ocr(image_path)
         
     if not result or result[0] is None:
         print("Nenhum resultado encontrado.")
         return None    
     
     detected_words = []
-    for line in result:
-        for word_info in line:
-            text = word_info[1][0].replace(" ", "")
-            text = limpar_placa(text)
-            print(f"Texto detectado: {text}")
+    for page in result:
+        for word_info in page:
+            # must be a pair [bbox, (text, score)]
+            if (not isinstance(word_info, (list, tuple)) 
+                or len(word_info) < 2 
+                or not isinstance(word_info[1], (list, tuple)) 
+                or len(word_info[1]) < 2):
+                # skip anything that isn't the expected (text, confidence) tuple
+                continue
+
+            raw_text, conf = word_info[1][0], word_info[1][1]
+            text = limpar_placa(raw_text.replace(" ", ""))
+            print(f"Texto detectado: {text} (conf {conf})")
+
             if text.lower() == "brasil":
                 is_new_plate = True
             else:
-                detected_words.append((text, word_info[1][1]))  # (text, confidence)
-                    
+                detected_words.append((text, conf))
+                
     print(f"Palavras detectadas: {detected_words}") 
     
     # Tenta cada palavra isolada
@@ -326,7 +334,6 @@ def analyze_video(video_path):
         success, frame = cap.read()
 
     cap.release()
-    cv2.destroyAllWindows()
     
     # Group plates by Hamming distance
     placas = list(plates.keys())
