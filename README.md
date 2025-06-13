@@ -1,6 +1,6 @@
 # Detector de Placas de Veículos
 
-Este projeto consiste em uma API construída com FastAPI para detectar e reconhecer placas de veículos em imagens ou vídeos. Utiliza modelos YOLO para detecção de placas, PaddleOCR para reconhecimento de caracteres e realiza consultas de dados de placas via WDAPI2 com cache local para otimização de chamadas.
+Este projeto consiste em uma API construída com FastAPI para detectar e reconhecer placas de veículos em imagens ou vídeos. Utiliza modelos YOLOv11 para detecção de placas, PaddleOCR para reconhecimento de caracteres e realiza consultas de dados de placas via WDAPI2 com cache local para otimização de chamadas.
 
 ## Funcionalidades
 
@@ -125,6 +125,21 @@ curl -X POST http://localhost:8000/detect-plate/ \
 # Consultar placa
 curl http://localhost:8000/consulta-placa/ABC1234
 ```
+
+## Considerações:
+
+Esse backend foi desenvolvido para analisar placas de veículos no contexto brasileiro, utilizando YOLOv11 e PaddleOCR. A detecção é feita com base em imagens ou vídeos, e o reconhecimento de caracteres é otimizado para lidar com erros comuns de OCR. O cache local melhora a performance das consultas à WDAPI2.
+
+Conforme solicitado pelo professor, embora o código tenha sido desenvolvido para tratar placas brasileiras, é possível alterar o método: `correct_plate` em `utils.py` para adaptar o reconhecimento de caracteres a outros padrões de placas. Ademais, seria necessário alterar a API usada no endpoint `/consulta-placa/{placa}` para uma que forneça dados de placas do país desejado.
+
+## Notas para o professor corretor:
+
+O código acima foi feito o deploy na conta da AWS do Insper e pode ser utilizado através do link: [placas.fernandoa.dev](https://placas.fernandoa.dev). A API está rodando em uma instância EC2 micro de modo a ser acessível publicamente.
+
+Por ser uma instância pequena, o tempo de resposta pode ser muito maior do que o esperado, conforme conversamos por email. Os alunos testaram com imagens que levam cerca de 1 minuto para serem processadas e retornadas, e vídeos de 1 minuto que levaram cerca de 25 minutos para serem processados.
+
+Para realizar testes em vídeos maiores, recomendo hospedar a API localmente, junto com o FrontEnd, que está disponível no repositório [frontend-placas](https://github.com/devfernandoa/CompvisFrontend), a instruções de instalação e execução do FrontEnd estão disponíveis no README desse repositório.
+
 
 ## Licença
 
